@@ -1,17 +1,30 @@
 <?php
+require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../config/db.php';
+
+startSecureSession();
+
+// Real session-based guard — same is_admin flag that login.php sets.
+if (empty($_SESSION['is_admin'])) {
+    header('Location: login.php');
+    exit;
+}
+
+$csrfToken = csrfToken();
+
 /**
- * ADMIN DASHBOARD — FRONTEND-ONLY PROTOTYPE
+ * ADMIN DASHBOARD
  * ------------------------------------------------------------------
- * This page is intentionally NOT wired to the database yet. All data
- * (departments, students, elections, candidates, logs) lives in the
- * `state` object inside the <script> tag below and resets on reload.
+ * Access is gated by the real session above (see login.php / logout.php).
  *
- * It's meant to let the UI/UX be reviewed and approved before it gets
- * wired to real PHP/PDO endpoints (mirroring how admin/index.php talks
- * to the DB today). Login here is a client-side check only — replace
- * with a real session-based login (see admin/login.php) before shipping.
+ * The DATA rendered inside this page — departments, elections, candidates,
+ * logs — is still mock data living in the `state` object inside the
+ * <script> tag below, and resets on reload. That part is a UI prototype,
+ * not yet wired to positions/candidates/votes in the DB.
  *
- * Demo login:  ID = admin   Password = admin123
+ * For real, DB-backed position/candidate management right now, use
+ * quick-panel.php (linked in the sidebar below) — it's the same tool
+ * that used to live at admin/index.php.
  * ------------------------------------------------------------------
  */
 ?>
@@ -35,39 +48,10 @@
 *{box-sizing:border-box;}
 body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--ink);}
 
-/* ================= LOGIN ================= */
-#loginScreen{
-    position:fixed;inset:0;z-index:3000;
-    display:flex;align-items:center;justify-content:center;
-    background:linear-gradient(160deg,#0f172a,#1e293b 55%,#14532d);
-    padding:1rem;
-}
-#loginScreen .login-card{
-    width:100%;max-width:380px;background:rgba(255,255,255,0.08);
-    border:1px solid rgba(255,255,255,0.18);backdrop-filter:blur(18px);
-    border-radius:18px;padding:2.25rem 2rem;box-shadow:0 25px 60px rgba(0,0,0,0.45);
-}
-#loginScreen h1{color:#fff;margin:0 0 0.15rem;font-size:1.4rem;text-align:center;}
-#loginScreen p.sub{color:#94a3b8;text-align:center;margin:0 0 1.5rem;font-size:0.85rem;}
-#loginScreen label{color:#e2e8f0;font-size:0.85rem;font-weight:600;display:block;margin:0.9rem 0 0.35rem;}
-#loginScreen input{
-    width:100%;padding:0.65rem 0.8rem;border-radius:8px;border:1px solid rgba(255,255,255,0.25);
-    background:rgba(255,255,255,0.92);font-size:0.95rem;
-}
-#loginScreen input:focus{outline:none;border-color:var(--lime);box-shadow:0 0 0 3px rgba(132,204,22,.35);}
-#loginScreen .login-btn{
-    width:100%;margin-top:1.4rem;background:var(--lime);border:none;color:#052e16;
-    font-weight:700;padding:0.75rem;border-radius:10px;cursor:pointer;font-size:0.95rem;
-}
-#loginScreen .login-btn:hover{background:var(--lime-dark);}
-#loginScreen .login-error{
-    display:none;background:rgba(239,68,68,.18);color:#fecaca;border:1px solid rgba(239,68,68,.4);
-    padding:0.6rem 0.8rem;border-radius:8px;font-size:0.82rem;margin-top:1rem;
-}
-#loginScreen .demo-hint{color:#64748b;font-size:0.75rem;text-align:center;margin-top:1.1rem;}
-
 /* ================= SHELL / SIDEBAR ================= */
-#appShell{display:none;min-height:100vh;}
+/* Access is gated server-side (see the PHP guard at the top of this file),
+   so the shell renders directly — no client-side login screen anymore. */
+#appShell{display:flex;min-height:100vh;}
 .sidebar{
     width:240px;background:var(--navy);color:#e2e8f0;display:flex;flex-direction:column;
     position:fixed;top:0;left:0;bottom:0;z-index:1000;transition:transform .3s ease;overflow:hidden;
@@ -277,6 +261,40 @@ table.pos-table input, table.pos-table select{width:100%;padding:.4rem .5rem;bor
 .coming-soon{background:#fff;border-radius:16px;padding:3rem 2rem;text-align:center;color:var(--muted);box-shadow:0 2px 8px rgba(0,0,0,.04);}
 .coming-soon .cs-icon{font-size:2.5rem;margin-bottom:.75rem;}
 
+/* ================= STUDENTS PANEL ================= */
+.students-toolbar{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;margin-bottom:1.25rem;}
+.students-toolbar input[type=text]{flex:1;min-width:180px;padding:.55rem .8rem;border:1px solid var(--line);border-radius:8px;font-size:.85rem;}
+.students-toolbar select{padding:.55rem .7rem;border:1px solid var(--line);border-radius:8px;font-size:.83rem;background:#fff;}
+.students-table-wrap{background:#fff;border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,.04);overflow-x:auto;}
+table.students-table{width:100%;border-collapse:collapse;font-size:.85rem;min-width:920px;}
+table.students-table th{text-align:left;color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.03em;padding:.85rem 1rem;border-bottom:2px solid var(--line);white-space:nowrap;}
+table.students-table td{padding:.7rem 1rem;border-bottom:1px solid #f1f5f9;vertical-align:middle;white-space:nowrap;}
+table.students-table tr:last-child td{border-bottom:none;}
+table.students-table tr:hover td{background:#fafcff;}
+.name-cell{white-space:normal !important;min-width:160px;}
+.name-cell .sub{font-size:.72rem;color:var(--muted);}
+.status-pill{display:inline-flex;align-items:center;gap:.35rem;font-size:.72rem;font-weight:700;padding:.28rem .65rem;border-radius:999px;white-space:nowrap;}
+.status-pill.voted{color:#15803d;background:rgba(34,197,94,.12);}
+.status-pill.not-voted{color:#b45309;background:rgba(245,158,11,.12);}
+.status-pill.active{color:#1e40af;background:rgba(59,130,246,.12);}
+.status-pill.suspended{color:#b91c1c;background:rgba(239,68,68,.1);}
+.row-actions{display:flex;gap:.4rem;}
+.row-actions button{border:none;background:#f1f5f9;color:var(--navy);width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:.85rem;display:inline-flex;align-items:center;justify-content:center;}
+.row-actions button:hover{background:#e2e8f0;}
+.row-actions button.danger{color:#dc2626;}
+.row-actions button.danger:hover{background:#fee2e2;}
+.empty-row td{text-align:center;color:var(--muted);padding:2rem 1rem;}
+
+.pw-field{position:relative;display:flex;align-items:stretch;}
+.pw-field input{flex:1;padding-right:2.5rem;}
+.pw-toggle-btn{position:absolute;right:.4rem;top:50%;transform:translateY(-50%);background:none;border:none;padding:.25rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:0;}
+.pw-toggle-btn svg{width:18px;height:18px;stroke:#64748b;}
+.pw-toggle-btn .pw-icon-off{display:block;}
+.pw-toggle-btn .pw-icon-on{display:none;}
+.pw-toggle-btn.is-visible .pw-icon-off{display:none;}
+.pw-toggle-btn.is-visible .pw-icon-on{display:block;}
+.pw-hint{font-size:.75rem;color:var(--muted);margin-top:.3rem;}
+
 /* ================= RESPONSIVE ================= */
 @media (max-width:768px){
     .sidebar{transform:translateX(-100%);width:280px;}
@@ -292,21 +310,6 @@ table.pos-table input, table.pos-table select{width:100%;padding:.4rem .5rem;bor
 </head>
 <body>
 
-<!-- ================= LOGIN SCREEN ================= -->
-<div id="loginScreen">
-    <div class="login-card">
-        <h1>Admin Login</h1>
-        <p class="sub">School Elections — Administrator Access</p>
-        <div id="loginError" class="login-error">Invalid ID or password.</div>
-        <label for="adminId">Admin ID</label>
-        <input type="text" id="adminId" autocomplete="username" autofocus>
-        <label for="adminPass">Password</label>
-        <input type="password" id="adminPass" autocomplete="current-password">
-        <button class="login-btn" onclick="attemptLogin()">Log In</button>
-        <p class="demo-hint">Demo credentials — ID: <strong>admin</strong> · Password: <strong>admin123</strong></p>
-    </div>
-</div>
-
 <!-- ================= APP SHELL ================= -->
 <div id="appShell">
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -320,10 +323,11 @@ table.pos-table input, table.pos-table select{width:100%;padding:.4rem .5rem;bor
         <nav>
             <a data-panel="dashboard" class="nav-link active" onclick="showPanel('dashboard')"><span class="ic">▦</span> Dashboard</a>
             <a data-panel="election" class="nav-link" onclick="showPanel('election')"><span class="ic">🗳</span> Election</a>
-            <a data-panel="students" class="nav-link disabled" onclick="return false;"><span class="ic">🎓</span> Students <span class="muted" style="font-size:.65rem;margin-left:.3rem;">(soon)</span></a>
+            <a data-panel="students" class="nav-link" onclick="showPanel('students')"><span class="ic">🎓</span> Students</a>
             <a data-panel="results" class="nav-link" onclick="showPanel('results')"><span class="ic">📊</span> Results</a>
             <a data-panel="archive" class="nav-link disabled" onclick="return false;"><span class="ic">🗄</span> Archive <span class="muted" style="font-size:.65rem;margin-left:.3rem;">(soon)</span></a>
             <a data-panel="logs" class="nav-link" onclick="showPanel('logs')"><span class="ic">📜</span> Logs</a>
+            <a href="quick-panel.php" class="nav-link"><span class="ic">🛠</span> Quick Panel <span class="muted" style="font-size:.65rem;margin-left:.3rem;">(DB-connected)</span></a>
         </nav>
         <div class="profile-section">
             <div class="avatar">A</div>
@@ -333,7 +337,7 @@ table.pos-table input, table.pos-table select{width:100%;padding:.4rem .5rem;bor
             </div>
         </div>
         <div class="logout-link">
-            <a onclick="logout()">Log Out</a>
+            <a href="logout.php">Log Out</a>
         </div>
     </div>
 
@@ -352,10 +356,8 @@ table.pos-table input, table.pos-table select{width:100%;padding:.4rem .5rem;bor
         <!-- ============ ELECTION PANEL ============ -->
         <div class="panel" id="panel-election"></div>
 
-        <!-- ============ STUDENTS (placeholder) ============ -->
-        <div class="panel" id="panel-students">
-            <div class="coming-soon"><div class="cs-icon">🎓</div><h3>Student management is coming soon</h3><p>This section will let admins view and manage registered voters per department.</p></div>
-        </div>
+        <!-- ============ STUDENTS PANEL ============ -->
+        <div class="panel" id="panel-students"></div>
 
         <!-- ============ RESULTS PANEL ============ -->
         <div class="panel" id="panel-results"></div>
@@ -375,13 +377,50 @@ table.pos-table input, table.pos-table select{width:100%;padding:.4rem .5rem;bor
    MOCK STATE  (frontend-only — replace with real API/DB calls later)
    ========================================================================= */
 const state = {
-    departments: [
-        {name:'FICT', total: 320, voted: 231},
-        {name:'CBA',  total: 280, voted: 150},
-        {name:'CTHM', total: 190, voted: 148},
-        {name:'CAS',  total: 260, voted: 96},
-        {name:'CTE',  total: 210, voted: 60},
+    // Every student account lives here now — department turnout on the
+    // Dashboard is computed FROM this list (see departmentStats()) instead
+    // of being separately hard-coded, so the two panels can't drift apart.
+    //
+    // SECURITY NOTE ON `password`: storing it in plain, readable form here
+    // is a UI-prototype shortcut only. See the note above registerStudent()
+    // further down for what this needs to become on the real backend.
+    students: [
+        {id:1,  studentId:'2023-00101', fullName:'John Alonsagay',        department:'FICT', major:'BS Information Technology', section:'3A', yearLevel:'3rd Year', email:'john.alonsagay@fict.edu.ph',        status:'active',    hasVoted:true,  password:'Passw0rd!01', dateRegistered:'2026-06-10'},
+        {id:2,  studentId:'2023-00102', fullName:'Kim Nathaniel Uy',      department:'FICT', major:'BS Information Technology', section:'3A', yearLevel:'3rd Year', email:'kim.uy@fict.edu.ph',                status:'active',    hasVoted:true,  password:'Passw0rd!02', dateRegistered:'2026-06-10'},
+        {id:3,  studentId:'2023-00103', fullName:'Maria Dolores Ferrer',  department:'FICT', major:'BS Computer Science',       section:'2B', yearLevel:'2nd Year', email:'maria.ferrer@fict.edu.ph',          status:'active',    hasVoted:true,  password:'Passw0rd!03', dateRegistered:'2026-06-11'},
+        {id:4,  studentId:'2023-00104', fullName:'Rafael Tan',            department:'FICT', major:'BS Information Systems',    section:'4A', yearLevel:'4th Year', email:'rafael.tan@fict.edu.ph',            status:'active',    hasVoted:false, password:'Passw0rd!04', dateRegistered:'2026-06-11'},
+        {id:5,  studentId:'2023-00105', fullName:'Ella Marasigan',        department:'FICT', major:'BS Information Technology', section:'1A', yearLevel:'1st Year', email:'ella.marasigan@fict.edu.ph',        status:'active',    hasVoted:false, password:'Passw0rd!05', dateRegistered:'2026-06-12'},
+        {id:6,  studentId:'2023-00106', fullName:'Vincent Ocampo',        department:'FICT', major:'BS Computer Science',       section:'4A', yearLevel:'4th Year', email:'vincent.ocampo@fict.edu.ph',        status:'suspended', hasVoted:false, password:'Passw0rd!06', dateRegistered:'2026-06-12'},
+
+        {id:7,  studentId:'2023-00201', fullName:'Patricia Gomez',        department:'CBA',  major:'BS Business Administration', section:'2A', yearLevel:'2nd Year', email:'patricia.gomez@cba.edu.ph',        status:'active',    hasVoted:true,  password:'Passw0rd!07', dateRegistered:'2026-06-10'},
+        {id:8,  studentId:'2023-00202', fullName:'Carlo Mendoza',         department:'CBA',  major:'BS Accountancy',            section:'3B', yearLevel:'3rd Year', email:'carlo.mendoza@cba.edu.ph',         status:'active',    hasVoted:false, password:'Passw0rd!08', dateRegistered:'2026-06-10'},
+        {id:9,  studentId:'2023-00203', fullName:'Diane Salvador',        department:'CBA',  major:'BS Entrepreneurship',       section:'1A', yearLevel:'1st Year', email:'diane.salvador@cba.edu.ph',        status:'active',    hasVoted:false, password:'Passw0rd!09', dateRegistered:'2026-06-11'},
+        {id:10, studentId:'2023-00204', fullName:'Josef Ramirez',         department:'CBA',  major:'BS Business Administration', section:'4A', yearLevel:'4th Year', email:'josef.ramirez@cba.edu.ph',        status:'active',    hasVoted:true,  password:'Passw0rd!10', dateRegistered:'2026-06-11'},
+        {id:11, studentId:'2023-00205', fullName:'Faith Dizon',           department:'CBA',  major:'BS Accountancy',            section:'2A', yearLevel:'2nd Year', email:'faith.dizon@cba.edu.ph',           status:'active',    hasVoted:false, password:'Passw0rd!11', dateRegistered:'2026-06-12'},
+        {id:12, studentId:'2023-00206', fullName:'Nico Aguilar',          department:'CBA',  major:'BS Entrepreneurship',       section:'3A', yearLevel:'3rd Year', email:'nico.aguilar@cba.edu.ph',          status:'active',    hasVoted:false, password:'Passw0rd!12', dateRegistered:'2026-06-12'},
+
+        {id:13, studentId:'2023-00301', fullName:'Grace Lim',             department:'CTHM', major:'BS Hospitality Management', section:'2A', yearLevel:'2nd Year', email:'grace.lim@cthm.edu.ph',            status:'active',    hasVoted:true,  password:'Passw0rd!13', dateRegistered:'2026-06-10'},
+        {id:14, studentId:'2023-00302', fullName:'Marco Padilla',         department:'CTHM', major:'BS Tourism Management',     section:'3A', yearLevel:'3rd Year', email:'marco.padilla@cthm.edu.ph',        status:'active',    hasVoted:true,  password:'Passw0rd!14', dateRegistered:'2026-06-10'},
+        {id:15, studentId:'2023-00303', fullName:'Isabel Cruz',           department:'CTHM', major:'BS Hospitality Management', section:'1A', yearLevel:'1st Year', email:'isabel.cruz@cthm.edu.ph',          status:'active',    hasVoted:false, password:'Passw0rd!15', dateRegistered:'2026-06-11'},
+        {id:16, studentId:'2023-00304', fullName:'Julius Navarro',        department:'CTHM', major:'BS Tourism Management',     section:'4A', yearLevel:'4th Year', email:'julius.navarro@cthm.edu.ph',       status:'active',    hasVoted:true,  password:'Passw0rd!16', dateRegistered:'2026-06-11'},
+        {id:17, studentId:'2023-00305', fullName:'Cristine Yap',          department:'CTHM', major:'BS Hospitality Management', section:'2B', yearLevel:'2nd Year', email:'cristine.yap@cthm.edu.ph',         status:'active',    hasVoted:false, password:'Passw0rd!17', dateRegistered:'2026-06-12'},
+        {id:18, studentId:'2023-00306', fullName:'Aaron Bautista',        department:'CTHM', major:'BS Tourism Management',     section:'1A', yearLevel:'1st Year', email:'aaron.bautista@cthm.edu.ph',       status:'active',    hasVoted:false, password:'Passw0rd!18', dateRegistered:'2026-06-12'},
+
+        {id:19, studentId:'2023-00401', fullName:'Bianca Delos Santos',   department:'CAS',  major:'AB Communication',          section:'3A', yearLevel:'3rd Year', email:'bianca.delossantos@cas.edu.ph',    status:'active',    hasVoted:false, password:'Passw0rd!19', dateRegistered:'2026-06-10'},
+        {id:20, studentId:'2023-00402', fullName:'Renz Villamor',         department:'CAS',  major:'BS Psychology',             section:'2A', yearLevel:'2nd Year', email:'renz.villamor@cas.edu.ph',         status:'active',    hasVoted:false, password:'Passw0rd!20', dateRegistered:'2026-06-10'},
+        {id:21, studentId:'2023-00403', fullName:'Kaye Fernandez',        department:'CAS',  major:'BS Biology',                section:'4A', yearLevel:'4th Year', email:'kaye.fernandez@cas.edu.ph',        status:'active',    hasVoted:true,  password:'Passw0rd!21', dateRegistered:'2026-06-11'},
+        {id:22, studentId:'2023-00404', fullName:'Aldrin Pascual',        department:'CAS',  major:'AB Communication',          section:'1A', yearLevel:'1st Year', email:'aldrin.pascual@cas.edu.ph',        status:'active',    hasVoted:false, password:'Passw0rd!22', dateRegistered:'2026-06-11'},
+        {id:23, studentId:'2023-00405', fullName:'Michelle Torres',       department:'CAS',  major:'BS Psychology',             section:'3B', yearLevel:'3rd Year', email:'michelle.torres@cas.edu.ph',       status:'active',    hasVoted:false, password:'Passw0rd!23', dateRegistered:'2026-06-12'},
+        {id:24, studentId:'2023-00406', fullName:'Louie Manalo',          department:'CAS',  major:'BS Biology',                section:'2A', yearLevel:'2nd Year', email:'louie.manalo@cas.edu.ph',          status:'active',    hasVoted:false, password:'Passw0rd!24', dateRegistered:'2026-06-12'},
+
+        {id:25, studentId:'2023-00501', fullName:'Cherry Domingo',        department:'CTE',  major:'BSEd — English',            section:'3A', yearLevel:'3rd Year', email:'cherry.domingo@cte.edu.ph',        status:'active',    hasVoted:false, password:'Passw0rd!25', dateRegistered:'2026-06-10'},
+        {id:26, studentId:'2023-00502', fullName:'Paolo Rivera',          department:'CTE',  major:'BEEd — General Education',  section:'2A', yearLevel:'2nd Year', email:'paolo.rivera@cte.edu.ph',          status:'active',    hasVoted:false, password:'Passw0rd!26', dateRegistered:'2026-06-10'},
+        {id:27, studentId:'2023-00503', fullName:'Angeline Custodio',     department:'CTE',  major:'BSEd — Mathematics',        section:'4A', yearLevel:'4th Year', email:'angeline.custodio@cte.edu.ph',     status:'active',    hasVoted:true,  password:'Passw0rd!27', dateRegistered:'2026-06-11'},
+        {id:28, studentId:'2023-00504', fullName:'Kristoffer Sales',      department:'CTE',  major:'BEEd — General Education',  section:'1A', yearLevel:'1st Year', email:'kristoffer.sales@cte.edu.ph',      status:'active',    hasVoted:false, password:'Passw0rd!28', dateRegistered:'2026-06-11'},
+        {id:29, studentId:'2023-00505', fullName:'Divine Alcantara',      department:'CTE',  major:'BSEd — English',            section:'2B', yearLevel:'2nd Year', email:'divine.alcantara@cte.edu.ph',      status:'active',    hasVoted:false, password:'Passw0rd!29', dateRegistered:'2026-06-12'},
+        {id:30, studentId:'2023-00506', fullName:'Emmanuel Roque',        department:'CTE',  major:'BSEd — Mathematics',        section:'3A', yearLevel:'3rd Year', email:'emmanuel.roque@cte.edu.ph',        status:'suspended', hasVoted:false, password:'Passw0rd!30', dateRegistered:'2026-06-12'},
     ],
+    nextStudentId: 31,
     logs: [
         {time:'2026-07-02 09:00 PM', text:'Admin added a candidate: Angelica Marie Fajardo (Treasurer, DSG FICT).'},
         {time:'2026-07-02 08:12 PM', text:'Admin edited election schedule for Supreme Student Government.'},
@@ -443,31 +482,26 @@ const state = {
 
 const departmentOptions = ['FICT','CBA','CTHM','CAS','CTE'];
 const yearOptions = ['1st Year','2nd Year','3rd Year','4th Year'];
+const majorsByDept = {
+    FICT: ['BS Information Technology','BS Computer Science','BS Information Systems'],
+    CBA:  ['BS Business Administration','BS Accountancy','BS Entrepreneurship'],
+    CTHM: ['BS Hospitality Management','BS Tourism Management'],
+    CAS:  ['BS Psychology','AB Communication','BS Biology'],
+    CTE:  ['BEEd — General Education','BSEd — English','BSEd — Mathematics'],
+};
 
-/* =========================================================================
-   LOGIN
-   ========================================================================= */
-function attemptLogin(){
-    const id = document.getElementById('adminId').value.trim();
-    const pass = document.getElementById('adminPass').value;
-    const err = document.getElementById('loginError');
-    if (id === 'admin' && pass === 'admin123') {
-        err.style.display = 'none';
-        document.getElementById('loginScreen').style.display = 'none';
-        document.getElementById('appShell').style.display = 'flex';
-        renderAll();
-    } else {
-        err.style.display = 'block';
-    }
-}
-document.getElementById('adminPass').addEventListener('keydown', e => { if (e.key === 'Enter') attemptLogin(); });
-document.getElementById('adminId').addEventListener('keydown', e => { if (e.key === 'Enter') attemptLogin(); });
-
-function logout(){
-    document.getElementById('appShell').style.display = 'none';
-    document.getElementById('loginScreen').style.display = 'flex';
-    document.getElementById('adminId').value = '';
-    document.getElementById('adminPass').value = '';
+// Single source of truth for "how many students / how many voted" per
+// department — both the Dashboard panel and election turnout math read
+// from this instead of a separately-maintained number.
+function departmentStats(){
+    const map = {};
+    departmentOptions.forEach(d => { map[d] = {name:d, total:0, voted:0}; });
+    state.students.forEach(s => {
+        if (!map[s.department]) map[s.department] = {name:s.department, total:0, voted:0};
+        map[s.department].total++;
+        if (s.hasVoted) map[s.department].voted++;
+    });
+    return Object.values(map);
 }
 
 /* =========================================================================
@@ -483,6 +517,7 @@ function showPanel(name){
     document.getElementById('pageHeaderTitle').textContent = panelTitles[name] || 'Dashboard';
     if (name === 'dashboard') renderDashboard();
     if (name === 'election') renderElectionList();
+    if (name === 'students') renderStudentList();
     if (name === 'results') renderResultsPanel();
     if (name === 'logs') renderLogsPanel();
     toggleSidebar(false);
@@ -529,12 +564,12 @@ function addLog(text){
     state.logs.unshift({time, text});
 }
 function electionTurnout(election){
-    // Mock turnout derived from department data for realism.
+    const departments = departmentStats();
     let voters = 0;
     if (election.type === 'SSG') {
-        voters = state.departments.reduce((a,d) => a + d.total, 0);
+        voters = departments.reduce((a,d) => a + d.total, 0);
     } else {
-        const dep = state.departments.find(d => d.name === election.department);
+        const dep = departments.find(d => d.name === election.department);
         voters = dep ? dep.total : 0;
     }
     const votesCast = Math.round(voters * (election.status === 'ongoing' ? 0.42 : election.status === 'closed' ? 0.81 : 0.0));
@@ -550,13 +585,14 @@ function resultsVisibleToStudents(election){
    DASHBOARD PANEL
    ========================================================================= */
 function renderDashboard(){
-    const totalStudents = state.departments.reduce((a,d)=>a+d.total,0);
-    const totalVoted = state.departments.reduce((a,d)=>a+d.voted,0);
+    const departments = departmentStats();
+    const totalStudents = departments.reduce((a,d)=>a+d.total,0);
+    const totalVoted = departments.reduce((a,d)=>a+d.voted,0);
     const totalNotVoted = totalStudents - totalVoted;
     const overallPct = totalStudents ? Math.round((totalVoted/totalStudents)*100) : 0;
     const activeElections = state.elections.filter(e => e.status === 'ongoing').length;
 
-    const deptRows = state.departments.map(d => {
+    const deptRows = departments.map(d => {
         const pct = d.total ? Math.round((d.voted/d.total)*100) : 0;
         return `
         <div class="dept-row">
@@ -581,8 +617,8 @@ function renderDashboard(){
         <text x="75" y="90" text-anchor="middle" font-size="11" fill="#64748b">turnout</text>
     </svg>`;
 
-    const best = [...state.departments].sort((a,b)=> (b.voted/b.total) - (a.voted/a.total))[0];
-    const worst = [...state.departments].sort((a,b)=> (a.voted/a.total) - (b.voted/b.total))[0];
+    const best = [...departments].sort((a,b)=> (b.voted/b.total) - (a.voted/a.total))[0];
+    const worst = [...departments].sort((a,b)=> (a.voted/a.total) - (b.voted/b.total))[0];
     const bestPct = Math.round((best.voted/best.total)*100);
     const worstPct = Math.round((worst.voted/worst.total)*100);
 
@@ -1123,6 +1159,326 @@ function finalizeElection(){
 }
 
 /* =========================================================================
+   STUDENTS PANEL
+   ------------------------------------------------------------------------
+   ON PASSWORDS: the request behind this panel was "retrievable, but
+   hashed" — those two are mutually exclusive with real hashing (bcrypt/
+   Argon2 is one-way by design; that's the whole point of it, and it's
+   what users/password.php already uses correctly for the admin login).
+   For a password an admin needs to look back up and read, the DB column
+   has to hold something the server can *decrypt*, not just verify — e.g.
+   AES-256-GCM with the key kept in an env var, not in the repo/DB. That's
+   real protection against someone reading the database directly, but it
+   is weaker than true hashing, since anyone with the app's encryption
+   key (i.e. anyone who compromises the server, not just the DB) can
+   recover every password. Worth deciding deliberately rather than by
+   default — a "Reset Password" flow (admin sets a new one, old one is
+   simply gone) avoids this trade-off entirely and is the more common
+   pattern for exactly this reason. Said as much in chat; for now this
+   prototype just keeps the value in plain, readable form in `state`
+   since it isn't touching a real database yet.
+   ========================================================================= */
+let studentFilters = { search:'', department:'', year:'', voter:'', account:'' };
+let studentDraft = null;
+
+function blankStudentDraft(){
+    return {
+        id:null, studentId:'', fullName:'', department:'', major:'', section:'',
+        yearLevel:'1st Year', email:'', status:'active', hasVoted:false,
+        password:'', dateRegistered:'',
+    };
+}
+
+function renderStudentList(){
+    const activeElId = document.activeElement ? document.activeElement.id : null;
+    const caret = (activeElId === 'stuSearch') ? document.activeElement.selectionStart : null;
+
+    const total = state.students.length;
+    const voted = state.students.filter(s => s.hasVoted).length;
+    const notVoted = total - voted;
+    const activeAccounts = state.students.filter(s => s.status === 'active').length;
+
+    const filtered = state.students.filter(s => {
+        if (studentFilters.search) {
+            const q = studentFilters.search.toLowerCase();
+            if (!s.fullName.toLowerCase().includes(q) && !s.studentId.toLowerCase().includes(q)) return false;
+        }
+        if (studentFilters.department && s.department !== studentFilters.department) return false;
+        if (studentFilters.year && s.yearLevel !== studentFilters.year) return false;
+        if (studentFilters.voter === 'voted' && !s.hasVoted) return false;
+        if (studentFilters.voter === 'not-voted' && s.hasVoted) return false;
+        if (studentFilters.account && s.status !== studentFilters.account) return false;
+        return true;
+    }).sort((a,b) => a.fullName.localeCompare(b.fullName));
+
+    const rows = filtered.map(s => `
+        <tr>
+            <td>${escapeHtml(s.studentId)}</td>
+            <td class="name-cell">${escapeHtml(s.fullName)}<div class="sub">${escapeHtml(s.email || '—')}</div></td>
+            <td>${escapeHtml(s.department)}</td>
+            <td>${escapeHtml(s.major)}</td>
+            <td>${escapeHtml(s.section)}</td>
+            <td>${escapeHtml(s.yearLevel)}</td>
+            <td><span class="status-pill ${s.hasVoted ? 'voted' : 'not-voted'}">${s.hasVoted ? '✔ Voted' : 'Not Voted'}</span></td>
+            <td><span class="status-pill ${s.status}">${s.status === 'active' ? 'Active' : 'Suspended'}</span></td>
+            <td>
+                <div class="row-actions">
+                    <button title="Edit" onclick="editStudent(${s.id})">✎</button>
+                    <button title="Delete" class="danger" onclick="deleteStudent(${s.id})">🗑</button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+
+    document.getElementById('panel-students').innerHTML = `
+        <div id="studentListView">
+            <div class="stats-bar">
+                <div class="stat-box"><div class="stat-number">${total}</div><div class="stat-label">Total Students</div></div>
+                <div class="stat-box"><div class="stat-number">${voted}</div><div class="stat-label">Voted</div></div>
+                <div class="stat-box"><div class="stat-number">${notVoted}</div><div class="stat-label">Not Yet Voted</div></div>
+                <div class="stat-box"><div class="stat-number">${activeAccounts}</div><div class="stat-label">Active Accounts</div></div>
+            </div>
+
+            <div class="panel-flex-header">
+                <h2 class="section-title" style="margin:0;">Registered Students</h2>
+                <button class="btn btn-primary" onclick="openRegisterStudent()">+ Register Student</button>
+            </div>
+
+            <div class="students-toolbar">
+                <input type="text" id="stuSearch" placeholder="Search by name or Student ID..." value="${escapeHtml(studentFilters.search)}" oninput="studentFilters.search=this.value; renderStudentList();">
+                <select onchange="studentFilters.department=this.value; renderStudentList();">
+                    <option value="">All Departments</option>
+                    ${departmentOptions.map(d => `<option value="${d}" ${studentFilters.department===d?'selected':''}>${d}</option>`).join('')}
+                </select>
+                <select onchange="studentFilters.year=this.value; renderStudentList();">
+                    <option value="">All Year Levels</option>
+                    ${yearOptions.map(y => `<option value="${y}" ${studentFilters.year===y?'selected':''}>${y}</option>`).join('')}
+                </select>
+                <select onchange="studentFilters.voter=this.value; renderStudentList();">
+                    <option value="">Voter Status: All</option>
+                    <option value="voted" ${studentFilters.voter==='voted'?'selected':''}>Voted</option>
+                    <option value="not-voted" ${studentFilters.voter==='not-voted'?'selected':''}>Not Voted</option>
+                </select>
+                <select onchange="studentFilters.account=this.value; renderStudentList();">
+                    <option value="">Account: All</option>
+                    <option value="active" ${studentFilters.account==='active'?'selected':''}>Active</option>
+                    <option value="suspended" ${studentFilters.account==='suspended'?'selected':''}>Suspended</option>
+                </select>
+            </div>
+
+            <div class="students-table-wrap">
+                <table class="students-table">
+                    <thead><tr>
+                        <th>Student ID</th><th>Full Name</th><th>Department</th><th>Major</th><th>Section</th><th>Year</th><th>Voter Status</th><th>Account</th><th></th>
+                    </tr></thead>
+                    <tbody>${rows || '<tr class="empty-row"><td colspan="9">No students match your filters.</td></tr>'}</tbody>
+                </table>
+            </div>
+        </div>
+        <div id="studentFormView" style="display:none;"></div>
+    `;
+
+    if (activeElId === 'stuSearch') {
+        const el = document.getElementById('stuSearch');
+        if (el) { el.focus(); el.setSelectionRange(caret, caret); }
+    }
+}
+
+function openRegisterStudent(){
+    studentDraft = blankStudentDraft();
+    document.getElementById('studentListView').style.display = 'none';
+    document.getElementById('studentFormView').style.display = 'block';
+    renderStudentForm();
+}
+
+function editStudent(id){
+    const s = state.students.find(s => s.id === id);
+    if (!s) return;
+    studentDraft = {...s};
+    document.getElementById('studentListView').style.display = 'none';
+    document.getElementById('studentFormView').style.display = 'block';
+    renderStudentForm();
+}
+
+function cancelStudentForm(){
+    studentDraft = null;
+    document.getElementById('studentListView').style.display = 'block';
+    document.getElementById('studentFormView').style.display = 'none';
+    renderStudentList();
+}
+
+function renderStudentForm(){
+    const isEdit = !!studentDraft.id;
+    const majors = majorsByDept[studentDraft.department] || [];
+
+    document.getElementById('studentFormView').innerHTML = `
+    <div class="wizard-topbar">
+        <button class="back-btn" onclick="cancelStudentForm()">&larr; Back</button>
+        <h2 class="section-title" style="margin:0;flex:1;">${isEdit ? 'Edit Student' : 'Register Student'}</h2>
+        <button class="btn btn-secondary btn-sm" onclick="cancelStudentForm()">Cancel</button>
+    </div>
+    <div id="studentFormError"></div>
+
+    <div class="wizard-section">
+        <h3>Student Info</h3>
+        <div class="two-col">
+            <div class="form-row">
+                <label>Student ID</label>
+                <input type="text" id="s_studentId" placeholder="e.g. 2026-00123" value="${escapeHtml(studentDraft.studentId)}">
+            </div>
+            <div class="form-row">
+                <label>Full Name</label>
+                <input type="text" id="s_fullName" value="${escapeHtml(studentDraft.fullName)}">
+            </div>
+            <div class="form-row">
+                <label>Department</label>
+                <select id="s_department" onchange="studentDraft.department=this.value; studentDraft.major=''; renderStudentForm();">
+                    <option value="">Select department</option>
+                    ${departmentOptions.map(d => `<option value="${d}" ${studentDraft.department===d?'selected':''}>${d}</option>`).join('')}
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Major</label>
+                <select id="s_major" ${!studentDraft.department ? 'disabled' : ''}>
+                    <option value="">${studentDraft.department ? 'Select major' : 'Select a department first'}</option>
+                    ${majors.map(m => `<option value="${escapeHtml(m)}" ${studentDraft.major===m?'selected':''}>${escapeHtml(m)}</option>`).join('')}
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Section</label>
+                <input type="text" id="s_section" placeholder="e.g. 3A" value="${escapeHtml(studentDraft.section)}">
+            </div>
+            <div class="form-row">
+                <label>Year Level</label>
+                <select id="s_year">
+                    ${yearOptions.map(y => `<option value="${y}" ${studentDraft.yearLevel===y?'selected':''}>${y}</option>`).join('')}
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Email <span class="muted" style="font-weight:400;">(optional)</span></label>
+                <input type="text" id="s_email" placeholder="name@school.edu.ph" value="${escapeHtml(studentDraft.email)}">
+            </div>
+            <div class="form-row">
+                <label>Account Status</label>
+                <div class="toggle-switch ${studentDraft.status==='active'?'on':''}" onclick="studentDraft.status = studentDraft.status==='active' ? 'suspended' : 'active'; renderStudentForm();">
+                    <div class="track"></div>
+                    <span>${studentDraft.status==='active' ? 'Active — can log in and vote' : 'Suspended — login blocked'}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="wizard-section">
+        <h3>Password</h3>
+        <div class="form-row" style="max-width:340px;">
+            <label>${isEdit ? 'Password (visible to admins)' : 'Set Password'}</label>
+            <div class="pw-field">
+                <input type="password" id="s_password" value="${escapeHtml(studentDraft.password)}">
+                <button type="button" class="pw-toggle-btn" onclick="toggleStudentPassword(this)" aria-label="Show password">
+                    <svg class="pw-icon-on" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                    <svg class="pw-icon-off" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a20.3 20.3 0 0 1 5.06-5.94M9.9 4.24A10.4 10.4 0 0 1 12 4c7 0 11 7 11 7a20.3 20.3 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                </button>
+            </div>
+            <p class="pw-hint">Students can't change or reset this themselves — admins set and look it up here.${isEdit ? ' Editing this immediately changes their login password.' : ''}</p>
+        </div>
+    </div>
+
+    ${isEdit ? `
+    <div class="wizard-section">
+        <h3>Voting Status</h3>
+        <div class="results-visibility-row">
+            <span class="status-pill ${studentDraft.hasVoted?'voted':'not-voted'}">${studentDraft.hasVoted ? '✔ Has voted' : 'Has not voted'}</span>
+            ${studentDraft.hasVoted ? `<button class="btn btn-danger btn-sm" onclick="resetVoteStatus()">Reset to Not Voted</button>` : ''}
+        </div>
+        <p class="pw-hint">Use this only to correct a mistake — it doesn't remove any vote already recorded for an election.</p>
+    </div>` : ''}
+
+    <div class="wizard-footer">
+        <div></div>
+        <button class="btn btn-primary" onclick="saveStudent()">${isEdit ? 'Save Changes' : 'Register Student'}</button>
+    </div>
+    `;
+}
+
+function toggleStudentPassword(btn){
+    const input = document.getElementById('s_password');
+    const isHidden = input.type === 'password';
+    input.type = isHidden ? 'text' : 'password';
+    btn.classList.toggle('is-visible', isHidden);
+}
+
+function resetVoteStatus(){
+    if (!confirm('Reset this student to "Not Voted"? This does not delete any vote records.')) return;
+    studentDraft.hasVoted = false;
+    addLog(`Admin manually reset voting status for ${studentDraft.fullName} (${studentDraft.studentId}).`);
+    renderStudentForm();
+}
+
+function saveStudent(){
+    const studentId = document.getElementById('s_studentId').value.trim();
+    const fullName = document.getElementById('s_fullName').value.trim();
+    const department = document.getElementById('s_department').value;
+    const major = document.getElementById('s_major').value;
+    const section = document.getElementById('s_section').value.trim();
+    const yearLevel = document.getElementById('s_year').value;
+    const email = document.getElementById('s_email').value.trim();
+    const password = document.getElementById('s_password').value;
+
+    const errors = [];
+    if (!studentId) errors.push('Student ID is required.');
+    if (studentId && state.students.some(s => s.studentId === studentId && s.id !== studentDraft.id)) errors.push('That Student ID is already registered.');
+    if (!fullName) errors.push('Full name is required.');
+    if (!department) errors.push('Select a department.');
+    if (!major) errors.push('Select a major.');
+    if (!section) errors.push('Section is required.');
+    if (!password) errors.push('Set a password.');
+    else if (password.length < 6) errors.push('Password should be at least 6 characters.');
+
+    if (errors.length) {
+        document.getElementById('studentFormError').innerHTML = `<div class="alert alert-error"><strong>Please fix the following:</strong><br>${errors.map(escapeHtml).join('<br>')}</div>`;
+        window.scrollTo(0,0);
+        return;
+    }
+    document.getElementById('studentFormError').innerHTML = '';
+
+    studentDraft.studentId = studentId;
+    studentDraft.fullName = fullName;
+    studentDraft.department = department;
+    studentDraft.major = major;
+    studentDraft.section = section;
+    studentDraft.yearLevel = yearLevel;
+    studentDraft.email = email;
+    studentDraft.password = password;
+
+    if (studentDraft.id) {
+        const idx = state.students.findIndex(s => s.id === studentDraft.id);
+        state.students[idx] = {...studentDraft};
+        addLog(`Admin edited student record: ${fullName} (${studentId}).`);
+    } else {
+        studentDraft.id = state.nextStudentId++;
+        studentDraft.status = studentDraft.status || 'active';
+        studentDraft.hasVoted = false;
+        studentDraft.dateRegistered = new Date().toISOString().slice(0,10);
+        state.students.push({...studentDraft});
+        addLog(`Admin registered a new student: ${fullName} (${studentId}).`);
+    }
+
+    studentDraft = null;
+    document.getElementById('studentListView').style.display = 'block';
+    document.getElementById('studentFormView').style.display = 'none';
+    renderStudentList();
+}
+
+function deleteStudent(id){
+    const s = state.students.find(s => s.id === id);
+    if (!s) return;
+    if (!confirm(`Delete ${s.fullName}? In a real system this would also remove their voting record.`)) return;
+    state.students = state.students.filter(st => st.id !== id);
+    addLog(`Admin deleted student record: ${s.fullName} (${s.studentId}).`);
+    renderStudentList();
+}
+
+/* =========================================================================
    RESULTS PANEL
    ========================================================================= */
 function renderResultsPanel(){
@@ -1197,9 +1553,11 @@ function renderLogsPanel(){
 function renderAll(){
     renderDashboard();
     renderElectionList();
+    renderStudentList();
     renderResultsPanel();
     renderLogsPanel();
 }
+renderAll();
 </script>
 </body>
 </html>
